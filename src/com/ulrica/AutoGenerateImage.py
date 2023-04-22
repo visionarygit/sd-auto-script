@@ -1,16 +1,37 @@
 import base64
+import datetime
 import os
+import random
 import time
 from io import BytesIO
 
 import requests
-from PIL import Image
+from PIL import Image, PngImagePlugin
 
 domain = 'http://localhost:7860'
 # txt2img_output = '/content/stable-diffusion-webui/output/txt2image/20230413111'
 txt2img_output = 'F:\\SDAI\\stable-diffusion-webui\\outputs\\txt2img-images\\auto'
 img2img_output = '/content/stable-diffusion-webui/output/img2image/20230413111'
 final_output = '/content/stable-diffusion-webui/output/final/20230413111'
+prompt_dir = 'F:\\code\\sd-auto-script\\src\\resource'
+chest_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\chest_prompt.txt'
+clothes_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\clothes_prompt.txt'
+expression_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\expression_prompt.txt'
+hair_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\hair_prompt.txt'
+sock_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\sock_prompt.txt'
+style_prompt_file = 'F:\\code\\sd-auto-script\\src\\resource\\style_prompt.txt'
+
+start_prompt = 'best quality ,masterpiece, extremely detailed ,CG ,unity ,8k wallpaper, Amazing, finely detail, ' \
+               'masterpiece,extremely detailed CG unity 8k wallpaper,absurdres, incredibly absurdres, huge filesize , ' \
+               'ultra-detailed, highres, extremely detailed,(1girl_solo),(beautiful detailed girl:1)'
+lora_prompt = ' <lora:taiwanDollLikeness_v10:0.3> <lora:koreanDollLikeness_v15:0.4> <lora:japaneseDollLikeness_v10:0.3>'
+
+style_prompt = []
+chest_prompt = []
+clothes_prompt = []
+hair_prompt = []
+expression_prompt = []
+sock_prompt = []
 
 txt2img_payload = {
     "enable_hr": False,
@@ -36,12 +57,12 @@ txt2img_payload = {
     "steps": 50,
     "cfg_scale": 7,
     "width": 768,
-    "height": 432,
+    "height": 1024,
     "restore_faces": True,
     "tiling": False,
     "do_not_save_samples": False,
     "do_not_save_grid": False,
-    "negative_prompt": "lowres,bad anatomy,bad hands, text, error, missing fingers,extra digit, fewer digits, cropped, worstquality, low quality, normal quality,jpegartifacts,signature, watermark, username,blurry,bad feet",
+    "negative_prompt": "(((simple background))),monochrome ,lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, lowres, bad anatomy, bad hands, text, error, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, ugly,pregnant,vore,duplicate,morbid,mut ilated,tran nsexual, hermaphrodite,long neck,mutated hands,poorly drawn hands,poorly drawn face,mutation,deformed,blurry,bad anatomy,bad proportions,malformed limbs,extra limbs,cloned face,disfigured,gross proportions, (((missing arms))),(((missing legs))), (((extra arms))),(((extra legs))),pubic hair, plump,bad legs,error legs,username,blurry,bad feet",
     "eta": 0,
     "s_churn": 0,
     "s_tmax": 0,
@@ -178,29 +199,71 @@ def tex2img(prompt, steps, batch_size):
 
     response = requests.post(url=f'{domain}/sdapi/v1/txt2img', json=txt2img_payload, timeout=12000)
     r = response.json()
-    print(r)
     print('=============================== txt2img get result,begin save img=================================== ')
 
-    if not os.path.exists(txt2img_output):
-        os.makedirs(txt2img_output)
-    for i in r['images']:
-        image = Image.open(BytesIO(base64.b64decode(i.split(",", 1)[0])))
+    current_path = txt2img_output + '\\' + datetime.date.today().strftime('%Y-%m-%d')
 
+    if not os.path.exists(current_path):
+        os.makedirs(current_path)
+    for i in r['images']:
+        image_info = i.split(",", 1)
+        print(image_info)
+        image = Image.open(BytesIO(base64.b64decode(image_info[0])))
         png_payload = {
             "image": "data:image/png;base64," + i
         }
-        # response2 = requests.post(url=f'{domain}/sdapi/v1/png-info', json=png_payload)
+        response2 = requests.post(url=f'{domain}/sdapi/v1/png-info', json=png_payload)
 
-        # pnginfo = PngImagePlugin.PngInfo()
-        # pnginfo.add_text("parameters", response2.json().get("info"))
-        # image.save(os.path.join(txt2img_output, f'{time.time()}.png'), pnginfo=pnginfo)
-        image.save(os.path.join(txt2img_output, f'{time.time()}.jpg'))
+        pnginfo = PngImagePlugin.PngInfo()
+        pnginfo.add_text("parameters", response2.json().get("info"))
+        time_crr = time.time()
+        image.save(os.path.join(current_path, f'{time_crr}.png'), pnginfo=pnginfo)
+        image.close()
+
+        # image_txt = open(os.path.join(current_path, f'{time_crr}.txt'), 'w')
+        # image_txt.write(r['info'])
+        # image_txt.close()
 
     print('===============================txt2img end=================================== output is :', txt2img_output)
 
 
+def init_prompt():
+    print('=============================begin init prompt======================================')
+    global style_prompt
+    global clothes_prompt
+    global chest_prompt
+    global expression_prompt
+    global hair_prompt
+    global sock_prompt
+    style_prompt = open(style_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'style_prompt:{len(style_prompt)}')
+    clothes_prompt = open(clothes_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'clothes_prompt:{len(clothes_prompt)}')
+    chest_prompt = open(chest_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'chest_prompt:{len(chest_prompt)}')
+    expression_prompt = open(expression_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'expression_prompt:{len(expression_prompt)}')
+    hair_prompt = open(hair_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'hair_prompt:{len(hair_prompt)}')
+    sock_prompt = open(sock_prompt_file, 'r', encoding='UTF-8').read().split(',')
+    print(f'sock_prompt:{len(sock_prompt)}')
+
+
+def gen_prompt():
+    random_number = random.random()
+    print(random_number)
+    return start_prompt + ',' \
+        + style_prompt[int(random_number * len(style_prompt) - 1)] + ',' \
+        + clothes_prompt[int(random_number * len(clothes_prompt) - 1)] + ',' \
+        + chest_prompt[int(random_number * len(chest_prompt) - 1)] + ',' \
+        + expression_prompt[int(random_number * len(expression_prompt) - 1)] + ',' \
+        + hair_prompt[int(random_number * len(hair_prompt) - 1)] + ',' + lora_prompt
+        # + sock_prompt[int(random_number * len(sock_prompt) - 1)]
+
+
+
 if __name__ == '__main__':
-    for i in range(10):
-        prompt = '(8k, RAW photo, best quality, masterpiece:1.2), (realistic, photo-realistic:1.37), ultra-detailed, 1 girl,cute, solo,beautiful detailed sky,detailed cafe,night,sitting,dating,(nose blush),(smile:1.1),(closed mouth) medium breasts,beautiful detailed eyes,(collared shirt:1.1), bowtie,pleated skirt,(short hair:1.2),floating hair,<lora:japaneseDollLikeness_v10:0.2>,<lora:koreanDollLikeness_v15:0.3>,<lora:taiwanDollLikeness_v10:0.3>'
-        tex2img(prompt, 30, 4)
-        time.sleep(300)
+    init_prompt()
+    for i in range(30):
+        tex2img(gen_prompt(), 20, 3)
+        time.sleep(100)
